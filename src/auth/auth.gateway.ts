@@ -18,7 +18,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private logger: Logger = new Logger('AuthGateway');
 
   // socket initialization
-  @WebSocketServer() server;
+  @WebSocketServer() server: any;
 
   // Mock data
   users: User[] = []
@@ -26,10 +26,10 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Kullanıcının socket bağlantısı sağlandı.
    * 
+   * @author suleymansevimli
+   * 
    * @param client 
    * @param args
-   * 
-   * @author suleymansevimli
    */
   async handleConnection(client: Socket, args: any) {
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
@@ -48,10 +48,10 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * Username setleme işlevi bu method üzerinden ele alınır.
+   * @author suleymansevimli
+   * 
    * @param client 
    * @param args 
-   * 
-   * @author suleymansevimli
    */
   @SubscribeMessage('SetUserNameRequest')
   onUserNameSetted(client: Socket, args: User) {
@@ -69,8 +69,12 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.users.push(newUser);
 
+    // tüm kullanıcılara gönderilen eventler
     this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, newUser);
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+
+    // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
+    client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, newUser);
 
     this.logger.error("New User joined", { userName, id: client.id });
   }
@@ -101,6 +105,26 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.error("user re joined", userName);
   }
 
+
+  /**
+   * 
+   * Logout işlemi bu fonksiyon üzerinden tetiklenir.
+   * 
+   * @param client 
+   * @param data 
+   */
+  @SubscribeMessage("userLogoutRequest")
+  onUserLoggedOut(client: Socket, data: any) {
+    const loggedOutUser = this.users.find(user => user.id === client.id);
+    if (loggedOutUser) {
+      this.users = this.users.filter(user => user.id !== client.id);
+      this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+      this.server.emit(AUTH_EVENT_ENUMS.USER_LOGGED_OUT, loggedOutUser);
+      client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, loggedOutUser);
+    }
+    this.logger.error("User logged out", loggedOutUser);
+  }
+
   /**
    * Yeni bir oda kurmak istenildiğinde bu fonksiyon tetiklenir.
    * 
@@ -115,15 +139,23 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.join(data.roomName)
     client.to(data.roomName).emit('newRoomCreated', { roomName: data.roomName });
     this.logger.log('Room members', client)
-    debugger
 
     return {
       event: "newRoomCreated", data: { room: data.roomName }
     }
   }
 
+  /**
+   * 
+   * İlgili kullanıcı odadan atılmak istendiğinde bu fonksiyon tetiklenir.
+   * 
+   * @author [sulaimansevimli](https://github.com/suleymansevimli)
+   * 
+   * @param client Bağlı olan kullanıcı
+   * @param data: { roomName: string } değerini barındırır
+   */
   @SubscribeMessage("leaveRoom")
   leaveRoom(client: Socket, data: any) {
-
+      client.leave(data.roomName)
   }
 }
