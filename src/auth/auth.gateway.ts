@@ -11,7 +11,7 @@ import { Socket } from 'socket.io';
 import { AUTH_EVENT_ENUMS } from './enums/event-enums';
 import { v4 as uuid } from 'uuid';
 
-@WebSocketGateway({ cors: true })
+@WebSocketGateway({ cors: true, namespace: '/auth' })
 export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // logger for cli / debug
