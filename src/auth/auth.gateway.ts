@@ -5,11 +5,11 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  WsResponse
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { AUTH_EVENT_ENUMS } from './enums/event-enums';
 import { v4 as uuid } from 'uuid';
+import { UserInterface, RoomInterface } from './interfaces/user.interfaces';
 
 @WebSocketGateway({ cors: true, namespace: '/auth' })
 export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -21,40 +21,42 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: any;
 
   // Mock data
-  users: User[] = []
+  users: UserInterface[] = [];
+  rooms: RoomInterface[] = [];
 
   /**
    * Kullanıcının socket bağlantısı sağlandı.
    * 
-   * @author suleymansevimli
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client 
    * @param args
    */
-  async handleConnection(client: Socket, args: any) {
+  handleConnection(client: Socket, args: any) {
+    // tüm kullanıcılara gönderilen eventler
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
-    this.logger.error("User connected", client.id);
+    this.server.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id});
   }
 
   /**
    * Kullanıcının socket bağlantısı kesildi.
    * 
-   * @author suleymansevimli
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    */
-  async handleDisconnect(client: Socket) {
-    this.logger.error("User disconnected", client.id);
+  handleDisconnect(client: Socket) {
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
   }
 
   /**
    * Username setleme işlevi bu method üzerinden ele alınır.
-   * @author suleymansevimli
+   * 
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client 
    * @param args 
    */
-  @SubscribeMessage('SetUserNameRequest')
-  onUserNameSetted(client: Socket, args: User) {
+  @SubscribeMessage(AUTH_EVENT_ENUMS.SET_USER_NAME_REQUEST)
+  onUserNameSetted(client: Socket, args: UserInterface) {
     const { userName } = args;
 
     // kullanıcı daha önce eklenmiş mi ?
@@ -65,7 +67,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     // Var olmayan bir kullanıcı ise listeye yeni gelen kişiyi ekle
-    const newUser: User = { userName, id: client.id, uniqueId: uuid() }
+    const newUser: UserInterface = { userName, id: client.id, uniqueId: uuid() }
 
     this.users.push(newUser);
 
@@ -75,20 +77,46 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
     client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, newUser);
+  }
 
-    this.logger.error("New User joined", { userName, id: client.id });
+  /**
+   * Tekrar giriş yapan kullanıcının bilgilerini almak için bu fonksiyon çağrılır.
+   * 
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
+   * 
+   * @param client Socket client
+   * @param data Gelen data
+   * @returns Socket.emit ile gönderilen event
+   */
+  @SubscribeMessage(AUTH_EVENT_ENUMS.GET_RE_JOIN_ALREADY_LOGINED_USER)
+  getReJoinAlreadyLoginedUser(client: Socket, data: any) {
+    const { uniqueId } = data;
+    const findUser = this.users.find(user => user.uniqueId === uniqueId);
+
+    if (findUser) {
+      client.emit(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER, findUser);
+
+      // this.server.sockets.adapter.rooms[data.roomName];
+
+      // User's joined rooms
+      const userJoinedRoom = this.rooms.reverse().find(room => room.roomOwner.uniqueId === findUser.uniqueId);
+      client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, userJoinedRoom ?? {});
+
+    } else {
+      client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, {});
+    }
   }
 
   /**
    * Kullanıcı sayfayı yeniledi ya da başka bir nedenle bağlantısı koparsa bu fonksiyon devreye girer.
    * 
-   * @author suleymansevimli
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client 
    * @param args 
    */
-  @SubscribeMessage("reJoinAllreadyLoginedUser")
-  reJoinAllreadyLoginedUser(client: Socket, args: User) {
+  @SubscribeMessage(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER)
+  reJoinAllreadyLoginedUser(client: Socket, args: UserInterface) {
     const { userName } = args;
 
     const reConnectedUser = { id: client.id, userName };
@@ -96,19 +124,17 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     let foundedUser = this.users.find(user => user.userName === userName);
 
     if (foundedUser) {
-      this.logger.error("user re joined -- founded", userName);
       foundedUser = reConnectedUser;
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
       this.server.to(AUTH_EVENT_ENUMS.USER_RE_JOINED, reConnectedUser);
     }
-
-    this.logger.error("user re joined", userName);
   }
-
 
   /**
    * 
    * Logout işlemi bu fonksiyon üzerinden tetiklenir.
+   * 
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client 
    * @param data 
@@ -122,34 +148,56 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.emit(AUTH_EVENT_ENUMS.USER_LOGGED_OUT, loggedOutUser);
       client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, loggedOutUser);
     }
-    this.logger.error("User logged out", loggedOutUser);
   }
 
   /**
    * Yeni bir oda kurmak istenildiğinde bu fonksiyon tetiklenir.
    * 
-   * @author suleymansevimli
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param {Socket} client 
    * @param {any} data 
    * @returns 
    */
-  @SubscribeMessage('newRoomCreateRequest')
-  createRoom(client: Socket, data: any): WsResponse<unknown> {
-    client.join(data.roomName)
-    client.to(data.roomName).emit('newRoomCreated', { roomName: data.roomName });
-    this.logger.log('Room members', client)
-
-    return {
-      event: "newRoomCreated", data: { room: data.roomName }
+  @SubscribeMessage(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REQUEST)
+  createRoom(client: Socket, data: any) {
+    
+    // check if room already exists
+    const roomExists = this.rooms.find(room => room.roomName === data.roomName);
+    if (roomExists) {
+      // return room already exists
+      client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REJECTED, { reason: "ALREADY_EXISTS", message: "Oda zaten mevcut" });
+      return;
     }
+
+    // create a new room
+    client.join(data.roomName);
+
+    // creator user
+    let whichUserCreatedRoom: UserInterface | null = this.users.find(user => user.id === client.id);
+    
+    // new room's informations
+    const roomData: RoomInterface = {
+      roomName: data.roomName,
+      users: [whichUserCreatedRoom],
+      id: uuid(),
+      slug: data.roomName.trim(" ").replace(/\s/g, '-').toLowerCase(), // create slug
+      roomOwner: whichUserCreatedRoom
+    }
+
+    // add room to rooms list
+    this.rooms.push({ ...roomData });
+
+    // accept message to client
+    client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, { ...roomData });
+
   }
 
   /**
    * 
    * İlgili kullanıcı odadan atılmak istendiğinde bu fonksiyon tetiklenir.
    * 
-   * @author [sulaimansevimli](https://github.com/suleymansevimli)
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client Bağlı olan kullanıcı
    * @param data: { roomName: string } değerini barındırır
