@@ -1,43 +1,50 @@
+import { Logger } from '@nestjs/common';
 import {
-  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
-  OnGatewayConnection, 
-  OnGatewayDisconnect
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  SubscribeMessage,
+  MessageBody,
+  WsResponse,
 } from '@nestjs/websockets';
-import { AuthService } from 'src/auth/auth.service';
 import { Socket } from 'socket.io';
 
 @WebSocketGateway({ cors: true, namespace: '/planning' })
 export class PlanningGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
+  // logger for cli / debug
+  private logger: Logger = new Logger('PlanningGateway');
+
   // socket initialization
   @WebSocketServer() server: any;
 
-  constructor(private readonly authService: AuthService) {}
-
   /**
-   * Socket connected
+   * Kullanıcının socket bağlantısı sağlandı.
+   * 
+   * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
    * @param client 
-   * @param args 
+   * @param args
    */
-  handleConnection(client: any, ...args: any[]) {
-    
+  handleConnection(client: Socket, args: any) {
+    this.logger.error(`Client connected: ${client.id}`);
+    this.server.emit("getAllTasks", {id: 1, name: "test"});
   }
-
 
   /**
-   * socket disconnected
+   * Kullanıcının socket bağlantısı kesildi.
+   * @param client 
    */
   handleDisconnect(client: any) {
-    throw new Error('Method not implemented.');
+    this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  @SubscribeMessage('onRoomCreate')
-  onRoomCreate(client: Socket, data: any) {
-    client.emit('ROOM_CREATE_REQUEST_ACCEPTED', {
-      room: { id: 'roomId', name: 'roomName' },
-    });
-  }
+  // @SubscribeMessage('getAllTasks')
+  // handleEvent(@MessageBody() data: unknown): WsResponse<unknown> {
+  //   const event = 'getAllTasks';
+  //   this.server.emit(event, { "emitter": "planning" });
+  //   return { event, data: {test: "test"} };
+  // }
+
 }

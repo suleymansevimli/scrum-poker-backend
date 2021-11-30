@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
-import { PlanningGateway } from 'src/planning/planning.gateway';
 import { AuthGateway } from './auth.gateway';
 import { AuthService } from './auth.service';
-
 @Module({
-    providers: [AuthGateway],
-    controllers: [AuthService],
-    imports: [PlanningGateway]
+    providers: [AuthGateway, AuthService],
+    controllers: [],
+    imports: []
 })
 export class AuthModule {}

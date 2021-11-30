@@ -36,6 +36,11 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // tüm kullanıcılara gönderilen eventler
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
     this.server.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id});
+    
+    this.logger.error('Auth - client connected', client.id);
+    
+    this.server.emit("testEvent", { client: client.id});
+    
   }
 
   /**
@@ -45,6 +50,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   handleDisconnect(client: Socket) {
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+    this.logger.error('Auth - Client disconnected',client.id);
   }
 
   /**
