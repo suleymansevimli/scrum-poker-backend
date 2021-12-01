@@ -63,6 +63,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.SET_USER_NAME_REQUEST)
   onUserNameSetted(client: Socket, args: UserInterface) {
+    this.logger.error('Username-setted', client.id);
     const { userName } = args;
 
     // kullanıcı daha önce eklenmiş mi ?
@@ -83,6 +84,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
     client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, newUser);
+    this.logger.error('Username-setted', client.id);
   }
 
   /**
@@ -92,11 +94,12 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 
    * @param client Socket client
    * @param data Gelen data
-   * @returns Socket.emit ile gönderilen event
+   * @returns {void}
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.GET_RE_JOIN_ALREADY_LOGINED_USER)
   getReJoinAlreadyLoginedUser(client: Socket, data: any) {
     const { uniqueId } = data;
+    this.logger.error('getReJoinAlreadyLoginedUser', uniqueId);
     const findUser = this.users.find(user => user.uniqueId === uniqueId);
 
     if (findUser) {

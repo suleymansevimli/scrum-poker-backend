@@ -9,6 +9,7 @@ import {
   WsResponse,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
+import { AuthGateway } from 'src/auth/auth.gateway';
 
 @WebSocketGateway({ cors: true, namespace: '/planning' })
 export class PlanningGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -18,6 +19,8 @@ export class PlanningGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   // socket initialization
   @WebSocketServer() server: any;
+
+  constructor(private readonly authGateway?: AuthGateway) { }
 
   /**
    * Kullanıcının socket bağlantısı sağlandı.
@@ -29,7 +32,7 @@ export class PlanningGateway implements OnGatewayConnection, OnGatewayDisconnect
    */
   handleConnection(client: Socket, args: any) {
     this.logger.error(`Client connected: ${client.id}`);
-    this.server.emit("getAllTasks", {id: 1, name: "test"});
+    this.server.emit("getAllTasks", {id: 1, name: "test", users: this.authGateway.users});
   }
 
   /**
