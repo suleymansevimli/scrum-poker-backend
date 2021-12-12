@@ -12,6 +12,7 @@ export enum AUTH_EVENT_ENUMS {
     USER_LOGGED_OUT = "userLoggedOut",
 
     // room
+    GET_ALL_ROOMS = "getAllRooms",
     NEW_ROOM_CREATE_REQUEST = "newRoomCreateRequest",
     NEW_ROOM_CREATE_ACCEPTED = "newRoomCreateAccepted",
     NEW_ROOM_CREATE_REJECTED = "newRoomCreateRejected",

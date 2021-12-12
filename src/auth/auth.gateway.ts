@@ -35,12 +35,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(client: Socket, args: any) {
     // tüm kullanıcılara gönderilen eventler
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
-    this.server.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id});
-    
-    this.logger.error('Auth - client connected', client.id);
-    
-    this.server.emit("testEvent", { client: client.id});
-    
+    client.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id });
+    this.logger.error('Auth - User connected', client.id);
   }
 
   /**
@@ -50,7 +46,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   handleDisconnect(client: Socket) {
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
-    this.logger.error('Auth - Client disconnected',client.id);
   }
 
   /**
@@ -150,6 +145,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage("userLogoutRequest")
   onUserLoggedOut(client: Socket, data: any) {
+    this.logger.error('User logged out', client.id);
     const loggedOutUser = this.users.find(user => user.id === client.id);
     if (loggedOutUser) {
       this.users = this.users.filter(user => user.id !== client.id);
@@ -213,6 +209,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage("leaveRoom")
   leaveRoom(client: Socket, data: any) {
-      client.leave(data.roomName)
+    client.leave(data.roomName)
   }
 }
