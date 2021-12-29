@@ -4,7 +4,7 @@ import { PlanningGateway } from './planning.gateway';
 
 @Module({
   providers: [PlanningGateway],
-  imports: [],
-  controllers: []
+  controllers: [],
+  imports: [AuthModule],
 })
 export class PlanningModule { }

@@ -166,7 +166,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REQUEST)
   createRoom(client: Socket, data: any) {
-    
+    this.logger.error('create new room request',data)
     // check if room already exists
     const roomExists = this.rooms.find(room => room.roomName === data.roomName);
     if (roomExists) {

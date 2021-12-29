@@ -3,6 +3,7 @@ import { AuthGateway } from './auth.gateway';
 @Module({
     providers: [AuthGateway],
     controllers: [],
-    imports: []
+    imports: [],
+    exports: [AuthGateway]
 })
-export class AuthModule {}
+export class AuthModule { }

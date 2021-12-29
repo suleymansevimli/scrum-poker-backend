@@ -9,6 +9,7 @@ import {
   WsResponse,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
+import { AuthGateway } from 'src/auth/auth.gateway';
 import { UserInterface } from 'src/auth/interfaces/user.interfaces';
 import { PLANNING_EVENT_TYPES } from './enums/event-enums';
 import { Task } from './interfaces/planning.interfaces';
@@ -27,6 +28,8 @@ export class PlanningGateway{
   // socket initialization
   @WebSocketServer() server: any;
 
+  constructor(private readonly authGateway: AuthGateway) {}
+
   /**
    * Kullanıcının socket bağlantısı sağlandı.
    * 
@@ -39,6 +42,7 @@ export class PlanningGateway{
     client.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasks });
     
     this.logger.error(`Planning - Client connected: ${client.id} `);
+    this.logger.error('all-users',JSON.stringify(this.authGateway.users));
   }
 
   /**
