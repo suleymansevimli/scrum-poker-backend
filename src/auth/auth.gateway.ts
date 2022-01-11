@@ -48,6 +48,11 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @author [suleymansevimli](https://github.com/suleymansevimli)
    */
   handleDisconnect(client: Socket) {
+    const foundedUser = this.users.find(user => user.id === client.id);
+
+    this.logger.error('Auth - User disconnected - ALL ', JSON.stringify(this.users));
+    this.logger.error('Auth - User disconnected - CLIENT SOCKET ID', client.id);
+    this.logger.error('Auth - User disconnected - RESULT ', foundedUser);
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
   }
 
