@@ -58,7 +58,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.SET_USER_NAME_REQUEST)
   onUserNameSetted(client: Socket, args: UserInterface) {
-    this.logger.error('Username-setted', client.id);
     const { userName } = args;
 
     // kullanıcı daha önce eklenmiş mi ?

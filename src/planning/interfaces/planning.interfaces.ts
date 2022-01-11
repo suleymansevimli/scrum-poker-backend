@@ -4,7 +4,7 @@ export interface Task {
     id: string;
     name: string;
     description: string;
-    storyPoint?: number;
+    storyPoint?: number | null;
     status: TASK_STATUS;
-    userRating?: TASK_USER_RATING;
+    usersRating?: TASK_USER_RATING[] | [];
 }
