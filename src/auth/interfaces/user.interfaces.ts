@@ -11,3 +11,8 @@ export interface RoomInterface {
     users: UserInterface[],
     roomOwner: UserInterface
 }
+
+export interface ErrorInterface {
+    message: String,
+    reason: String
+}

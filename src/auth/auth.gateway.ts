@@ -9,7 +9,7 @@ import {
 import { Socket } from 'socket.io';
 import { AUTH_EVENT_ENUMS } from './enums/event-enums';
 import { v4 as uuid } from 'uuid';
-import { UserInterface, RoomInterface } from './interfaces/user.interfaces';
+import { UserInterface, RoomInterface, ErrorInterface } from './interfaces/user.interfaces';
 
 @WebSocketGateway({ cors: true, namespace: '/auth' })
 export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -36,6 +36,9 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // tüm kullanıcılara gönderilen eventler
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
     client.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id });
+    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_ROOMS, this.rooms);
+
+    this.logger.log('allrooms', JSON.stringify(this.rooms));
     this.logger.error('Auth - User connected', client.id);
   }
 
@@ -145,7 +148,9 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage("userLogoutRequest")
   onUserLoggedOut(client: Socket, data: any) {
     this.logger.error('User logged out', client.id);
+
     const loggedOutUser = this.users.find(user => user.id === client.id);
+
     if (loggedOutUser) {
       this.users = this.users.filter(user => user.id !== client.id);
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
@@ -165,7 +170,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REQUEST)
   createRoom(client: Socket, data: any) {
-    this.logger.error('create new room request',data);
+    this.logger.error('create new room request', data);
     // check if room already exists
     const roomExists = this.rooms.find(room => room.roomName === data.roomName);
     if (roomExists) {
@@ -178,8 +183,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.join(data.roomName);
 
     // creator user
-    let whichUserCreatedRoom: UserInterface | null = this.users.find(user => user.id === client.id);
-    
+    let whichUserCreatedRoom: UserInterface = this.users.find(user => user.id === client.id);
+
     // new room's informations
     const roomData: RoomInterface = {
       roomName: data.roomName,
@@ -189,8 +194,11 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       roomOwner: whichUserCreatedRoom
     }
 
-    // add room to rooms list
+    // add room to room list
     this.rooms.push({ ...roomData });
+
+    // update room list
+    this.server.emit(AUTH_EVENT_ENUMS.UPDATED_ALL_ROOMS, this.rooms);
 
     // accept message to client
     client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, { ...roomData });
@@ -209,5 +217,41 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage("leaveRoom")
   leaveRoom(client: Socket, data: any) {
     client.leave(data.roomName)
+  }
+
+  /**
+   * Room Join Request
+   * 
+   * When user want to join a room, this function will be called.
+   * 
+   * @param client Socket client
+   * @param data arguments from client
+   */
+  @SubscribeMessage(AUTH_EVENT_ENUMS.ROOM_JOIN_REQUEST)
+  roomJoinRequest(client: Socket, data: any) {
+    this.logger.error('room join request', data);
+    const { slug } = data;
+    const room = this.rooms.find(room => room.slug === slug);
+
+    if (room) {
+      client.join(slug);
+      client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, room);
+    } else {
+      client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_REJECTED, this.createError("NOT_FOUND", "Oda bulunamadı"));
+    }
+  }
+
+  /**
+   * Create error object
+   * 
+   * @param {String} message error message 
+   * @param {String} reason  error reason
+   * @returns 
+   */
+  createError(reason: String, message: String,): ErrorInterface {
+    return {
+      message,
+      reason
+    }
   }
 }

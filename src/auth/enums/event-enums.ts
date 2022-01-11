@@ -7,13 +7,17 @@ export enum AUTH_EVENT_ENUMS {
     GET_RE_JOIN_ALREADY_LOGINED_USER = "getReJoinAlreadyLoginedUser",
     RE_JOIN_ALREADY_LOGINED_USER = "reJoinAllreadyLoginedUser",
     USER_RE_JOINED = "userReJoined",
-    LOGIN_REQUEST_ACCEPTED= "loginRequestAccepted",
-    LOGOUT_REQUEST_ACCEPTED= "logoutRequestAccepted",
+    LOGIN_REQUEST_ACCEPTED = "loginRequestAccepted",
+    LOGOUT_REQUEST_ACCEPTED = "logoutRequestAccepted",
     USER_LOGGED_OUT = "userLoggedOut",
 
     // room
     GET_ALL_ROOMS = "getAllRooms",
+    UPDATED_ALL_ROOMS = "updatedAllRooms",
     NEW_ROOM_CREATE_REQUEST = "newRoomCreateRequest",
     NEW_ROOM_CREATE_ACCEPTED = "newRoomCreateAccepted",
     NEW_ROOM_CREATE_REJECTED = "newRoomCreateRejected",
+    ROOM_JOIN_REQUEST = "roomJoinRequest",
+    ROOM_JOIN_ACCEPTED = "roomJoinAccepted",
+    ROOM_JOIN_REJECTED = "roomJoinRejected",
 }
