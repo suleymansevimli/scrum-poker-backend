@@ -1,5 +1,6 @@
 export enum AUTH_EVENT_ENUMS {
     USER_CONNECTED = "userConnected",
+    USER_DISCONNECTED = "userDisconnected",
     GET_ALL_USERS = "getAllUsers",
     NEW_USER_JOINED = "newUserJoined",
     SET_USER_NAME_REQUEST = "setUserNameRequest",

@@ -10,6 +10,7 @@ import { Socket } from 'socket.io';
 import { AUTH_EVENT_ENUMS } from './enums/event-enums';
 import { v4 as uuid } from 'uuid';
 import { UserInterface, RoomInterface, ErrorInterface } from './interfaces/user.interfaces';
+import { LIVELINESS_STATUS_ENUMS } from './enums/liveliness-status.enums';
 
 @WebSocketGateway({ cors: true, namespace: '/auth' })
 export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -33,13 +34,10 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param args
    */
   handleConnection(client: Socket, args: any) {
-    // tüm kullanıcılara gönderilen eventler
+
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
     client.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id });
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_ROOMS, this.rooms);
-
-    this.logger.log('allrooms', JSON.stringify(this.rooms));
-    this.logger.error('Auth - User connected', client.id);
   }
 
   /**
@@ -49,11 +47,12 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   handleDisconnect(client: Socket) {
     const foundedUser = this.users.find(user => user.id === client.id);
-
-    this.logger.error('Auth - User disconnected - ALL ', JSON.stringify(this.users));
-    this.logger.error('Auth - User disconnected - CLIENT SOCKET ID', client.id);
-    this.logger.error('Auth - User disconnected - RESULT ', foundedUser);
-    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+    if (foundedUser) {
+      foundedUser.livelinessStatus = LIVELINESS_STATUS_ENUMS.OFFLINE;
+      this.users.find(user => user.id === client.id).livelinessStatus = LIVELINESS_STATUS_ENUMS.OFFLINE;
+      this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+      this.server.emit(AUTH_EVENT_ENUMS.USER_DISCONNECTED, foundedUser);
+    }
   }
 
   /**
@@ -76,7 +75,12 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     // Var olmayan bir kullanıcı ise listeye yeni gelen kişiyi ekle
-    const newUser: UserInterface = { userName, id: client.id, uniqueId: uuid() }
+    const newUser: UserInterface = {
+      userName,
+      id: client.id,
+      uniqueId: uuid(),
+      livelinessStatus: LIVELINESS_STATUS_ENUMS.ONLINE
+    };
 
     this.users.push(newUser);
 
@@ -86,7 +90,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
     client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, newUser);
-    this.logger.error('Username-setted', client.id);
   }
 
   /**
@@ -101,11 +104,14 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(AUTH_EVENT_ENUMS.GET_RE_JOIN_ALREADY_LOGINED_USER)
   getReJoinAlreadyLoginedUser(client: Socket, data: any) {
     const { uniqueId } = data;
-    this.logger.error('getReJoinAlreadyLoginedUser', uniqueId);
-    const findUser = this.users.find(user => user.uniqueId === uniqueId);
-
+    const findUser: UserInterface = this.users.find(user => user.uniqueId === uniqueId);
     if (findUser) {
+      findUser.id = client.id;
+      findUser.livelinessStatus = LIVELINESS_STATUS_ENUMS.ONLINE;
       client.emit(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER, findUser);
+
+      this.users.find(user => user.uniqueId === uniqueId).id= client.id;
+      this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
       // this.server.sockets.adapter.rooms[data.roomName];
 
@@ -129,7 +135,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER)
   reJoinAllreadyLoginedUser(client: Socket, args: UserInterface) {
     const { userName } = args;
-
     const reConnectedUser = { id: client.id, userName };
 
     let foundedUser = this.users.find(user => user.userName === userName);
@@ -152,7 +157,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage("userLogoutRequest")
   onUserLoggedOut(client: Socket, data: any) {
-    this.logger.error('User logged out', client.id);
 
     const loggedOutUser = this.users.find(user => user.id === client.id);
 
@@ -175,7 +179,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REQUEST)
   createRoom(client: Socket, data: any) {
-    this.logger.error('create new room request', data);
     // check if room already exists
     const roomExists = this.rooms.find(room => room.roomName === data.roomName);
     if (roomExists) {
@@ -234,7 +237,6 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.ROOM_JOIN_REQUEST)
   roomJoinRequest(client: Socket, data: any) {
-    this.logger.error('room join request', data);
     const { slug } = data;
     const room = this.rooms.find(room => room.slug === slug);
 
