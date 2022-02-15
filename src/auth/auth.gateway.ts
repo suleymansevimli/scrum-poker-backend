@@ -117,7 +117,9 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // User's joined rooms
       const userJoinedRoom = this.rooms.reverse().find(room => room.roomOwner.uniqueId === findUser.uniqueId);
-      client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, userJoinedRoom ?? {});
+      if(userJoinedRoom) {
+        client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, userJoinedRoom ?? {});
+      }
 
     } else {
       client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, {});
@@ -242,6 +244,10 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (room) {
       client.join(slug);
+      const isUserExist = room.users.find(user => user.id === client.id);
+      if (!isUserExist) {
+        room.users.push(this.users.find(user => user.id === client.id));
+      }
       client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, room);
     } else {
       client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_REJECTED, this.createError("NOT_FOUND", "Oda bulunamadı"));
