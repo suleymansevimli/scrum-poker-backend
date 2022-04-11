@@ -22,7 +22,7 @@ export type TASK_WITH_STATUS = {
  * 
  * @author [suleymansevimli](https://github.com/suleymansevimli)
  */
-export type USER_RATING_STORY_POINTS = '1' | '2' | '3' | '5' | '8' | '13' | 'infinity' | 'coffee' | 'unknown';
+export type USER_RATING_STORY_POINTS = '-' | '1' | '2' | '3' | '5' | '8' | '13' | 'infinity' | 'coffee' | 'unknown';
 
 /**
  * Task User Rating
@@ -32,5 +32,4 @@ export type USER_RATING_STORY_POINTS = '1' | '2' | '3' | '5' | '8' | '13' | 'inf
 export type TASK_USER_RATING = {
     user: UserInterface,
     rating: USER_RATING_STORY_POINTS,
-    comment?: string,
 };

@@ -85,7 +85,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.users.push(newUser);
 
     // tüm kullanıcılara gönderilen eventler
-    this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, newUser);
+    // this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, newUser);
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
     // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
@@ -110,19 +110,20 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       findUser.livelinessStatus = LIVELINESS_STATUS_ENUMS.ONLINE;
       client.emit(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER, findUser);
 
-      this.users.find(user => user.uniqueId === uniqueId).id= client.id;
+      this.users.find(user => user.uniqueId === uniqueId).id = client.id;
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
       // this.server.sockets.adapter.rooms[data.roomName];
 
       // User's joined rooms
-      const userJoinedRoom = this.rooms.reverse().find(room => room.roomOwner.uniqueId === findUser.uniqueId);
-      if(userJoinedRoom) {
+      const userJoinedRoom = this.rooms.reverse().find(room => room.users.find(user => user.uniqueId === findUser.uniqueId));
+      if (userJoinedRoom) {
         client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, userJoinedRoom ?? {});
+        this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, findUser);
       }
 
     } else {
-      client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, {});
+      this.onUserLoggedOut(client, null);
     }
   }
 
@@ -145,6 +146,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       foundedUser = reConnectedUser;
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
       this.server.to(AUTH_EVENT_ENUMS.USER_RE_JOINED, reConnectedUser);
+
+      // ! Kullanıcı tekrar room'a join olacak.
     }
   }
 
@@ -167,6 +170,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
       this.server.emit(AUTH_EVENT_ENUMS.USER_LOGGED_OUT, loggedOutUser);
       client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, loggedOutUser);
+
+      // ! user should be removed from joined rooms
     }
   }
 
@@ -232,7 +237,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Room Join Request
    * 
-   * When user want to join a room, this function will be called.
+   * When user want join a room, this function will be called.
    * 
    * @param client Socket client
    * @param data arguments from client
@@ -246,9 +251,12 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.join(slug);
       const isUserExist = room.users.find(user => user.id === client.id);
       if (!isUserExist) {
-        room.users.push(this.users.find(user => user.id === client.id));
+        const user = this.users.find(user => user.id === client.id);
+        if (user) {
+          room.users.push(user);
+        }
       }
-      client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, room);
+      this.server.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, room);
     } else {
       client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_REJECTED, this.createError("NOT_FOUND", "Oda bulunamadı"));
     }

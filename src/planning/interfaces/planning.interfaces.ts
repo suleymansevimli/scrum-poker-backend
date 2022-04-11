@@ -6,5 +6,5 @@ export interface Task {
     description: string;
     storyPoint?: number | null;
     status: TASK_STATUS;
-    usersRating?: TASK_USER_RATING[] | [];
+    usersRating?: TASK_USER_RATING[];
 }
