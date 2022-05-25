@@ -5,12 +5,16 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  WsResponse,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { AUTH_EVENT_ENUMS } from './enums/event-enums';
 import { v4 as uuid } from 'uuid';
 import { UserInterface, RoomInterface, ErrorInterface } from './interfaces/user.interfaces';
 import { LIVELINESS_STATUS_ENUMS } from './enums/liveliness-status.enums';
+import { User } from './models/User';
+import { USER_TYPE_ENUMS } from './enums/enums';
+import { Room } from './models/Room';
 
 @WebSocketGateway({ cors: true, namespace: '/auth' })
 export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -22,8 +26,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: any;
 
   // Mock data
-  users: UserInterface[] = [];
-  rooms: RoomInterface[] = [];
+  users: User[] = [];
+  room: Room;
 
   /**
    * Kullanıcının socket bağlantısı sağlandı.
@@ -34,10 +38,8 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param args
    */
   handleConnection(client: Socket, args: any) {
-
-    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users)
+    // Kullanıcı socket id değerini bilsin.
     client.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id });
-    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_ROOMS, this.rooms);
   }
 
   /**
@@ -46,13 +48,41 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @author [suleymansevimli](https://github.com/suleymansevimli)
    */
   handleDisconnect(client: Socket) {
-    const foundedUser = this.users.find(user => user.id === client.id);
-    if (foundedUser) {
-      foundedUser.livelinessStatus = LIVELINESS_STATUS_ENUMS.OFFLINE;
-      this.users.find(user => user.id === client.id).livelinessStatus = LIVELINESS_STATUS_ENUMS.OFFLINE;
-      this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
-      this.server.emit(AUTH_EVENT_ENUMS.USER_DISCONNECTED, foundedUser);
+
+    // Hangi kullanıcı disconnected oldu ?
+    const findUser: User = this.users.find(user => user.socketId === client.id);
+
+    // Kullanıcı bulunamadı ise bir şey yapma.
+    if (!findUser) {
+      return
     }
+
+    // Kullanıcının liveliness statusu offline yapılır.
+    findUser.setLivelinessStatus(LIVELINESS_STATUS_ENUMS.OFFLINE);
+
+    // Diğer kullanıcılar bilgilendirilir.
+    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+
+    // // Eğer kullanıcı admin type'ında ise ADMIN statusu olarak bir sonraki kullanıcıya atanır.
+    // if (findUser.userType === USER_TYPE_ENUMS.ADMIN) {
+    // TODO : Başka bir kullanıcı admin status'une geçecek.
+    // TODO : UserTypeChanged event'i gönderilecek.
+    // }
+
+
+    // // Kullanıcının bulunduğu odalardan leave yapılır
+    //  TODO : Room class'ı oluşturulduktan sonra bu alan doldurulacak.
+    //  TODO: room içerisinde bulunan users alanından silinecek
+    //  TODO: Room owner ise kullanıcılardan bir tanesi room owner olarak setlenecek.
+
+    // // Kullanıcı listesi güncellenir.
+    // this.users = this.users.filter(user => user.socketId !== client.id);
+
+    // // Diğer kullanıcılar bilgilendirilir.
+    // this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+
+    // // kullanıcıya logout accepted mesajı gönderilir.
+    // client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, {});
   }
 
   /**
@@ -63,33 +93,32 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param client 
    * @param args 
    */
-  @SubscribeMessage(AUTH_EVENT_ENUMS.SET_USER_NAME_REQUEST)
-  onUserNameSetted(client: Socket, args: UserInterface) {
+  @SubscribeMessage(AUTH_EVENT_ENUMS.LOGIN_REQUEST)
+  loginRequest(client: Socket, args: UserInterface) {
     const { userName } = args;
 
-    // kullanıcı daha önce eklenmiş mi ?
+    // Kullanıcı daha önce eklenmiş mi ?
     const findUser = this.users.find(user => user.userName === userName);
+
+    // Kullanıcı daha önce eklenmişse kullanıcıya hata mesajı gönderilir.
     if (findUser) {
-      client.emit(AUTH_EVENT_ENUMS.USER_ALREADY_EXISTS, findUser);
+      client.emit(AUTH_EVENT_ENUMS.USER_ALREADY_EXISTS, this.createError('UserNameAlreadyExisted', 'UserNameAlreadyExisted'));
+
       return;
     }
 
-    // Var olmayan bir kullanıcı ise listeye yeni gelen kişiyi ekle
-    const newUser: UserInterface = {
-      userName,
-      id: client.id,
-      uniqueId: uuid(),
-      livelinessStatus: LIVELINESS_STATUS_ENUMS.ONLINE
-    };
+    // Listede yok ise yeni kullanıcı eklenir.
+    const user = new User(userName, client.id);
 
-    this.users.push(newUser);
+    // Kullanıcı listesine eklenir.
+    this.users.push(user);
 
-    // tüm kullanıcılara gönderilen eventler
-    // this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, newUser);
+    // Kullanıcının login işleminin başarılı olduğu bilgisi gönderilir.
+    client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, user);
+
+    // Diğer kullanıcılar bilgilendirilir.
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
-    // ilgili kullanıcıya kabul edildiğine dair gönderilen event.
-    client.emit(AUTH_EVENT_ENUMS.LOGIN_REQUEST_ACCEPTED, newUser);
   }
 
   /**
@@ -97,57 +126,37 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 
    * @author [suleymansevimli](https://github.com/suleymansevimli)
    * 
-   * @param client Socket client
-   * @param data Gelen data
+   * @param {Socket} client Socket client
+   * @param {any} data Gelen data
    * @returns {void}
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.GET_RE_JOIN_ALREADY_LOGINED_USER)
   getReJoinAlreadyLoginedUser(client: Socket, data: any) {
+
+    // uniqueId parametresi gelen data içerisinde bulunmalıdır. 
     const { uniqueId } = data;
-    const findUser: UserInterface = this.users.find(user => user.uniqueId === uniqueId);
+
+    // Kullanıcı users içerisinde bulunuyor mu ?
+    const findUser: User = this.users.find(user => user.uniqueId === uniqueId);
+
+    // Kullanıcı login olmuş ise 
     if (findUser) {
-      findUser.id = client.id;
-      findUser.livelinessStatus = LIVELINESS_STATUS_ENUMS.ONLINE;
+
+      // Kullanıcının socketId değeri güncellenir ve liveliness statusu online yapılır.
+      findUser.setSocketId(client.id);
+      findUser.setLivelinessStatus(LIVELINESS_STATUS_ENUMS.ONLINE);
+
+      // Kullanıcı bilgilendirilir.
       client.emit(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER, findUser);
 
-      this.users.find(user => user.uniqueId === uniqueId).id = client.id;
+      // Diğer kullanıcılar bilgilendirilir.
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
-      // this.server.sockets.adapter.rooms[data.roomName];
-
-      // User's joined rooms
-      const userJoinedRoom = this.rooms.reverse().find(room => room.users.find(user => user.uniqueId === findUser.uniqueId));
-      if (userJoinedRoom) {
-        client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, userJoinedRoom ?? {});
-        this.server.emit(AUTH_EVENT_ENUMS.NEW_USER_JOINED, findUser);
-      }
+      // TODO: Room içerisindeki userların içerisinde bulunuyorsa kullanıcı bilgileri güncellenir.
+      // TODO: ROOM_JOIN_ACCEPTED event'i gönderilir.
 
     } else {
       this.onUserLoggedOut(client, null);
-    }
-  }
-
-  /**
-   * Kullanıcı sayfayı yeniledi ya da başka bir nedenle bağlantısı koparsa bu fonksiyon devreye girer.
-   * 
-   * @author [suleymansevimli](https://github.com/suleymansevimli)
-   * 
-   * @param client 
-   * @param args 
-   */
-  @SubscribeMessage(AUTH_EVENT_ENUMS.RE_JOIN_ALREADY_LOGINED_USER)
-  reJoinAllreadyLoginedUser(client: Socket, args: UserInterface) {
-    const { userName } = args;
-    const reConnectedUser = { id: client.id, userName };
-
-    let foundedUser = this.users.find(user => user.userName === userName);
-
-    if (foundedUser) {
-      foundedUser = reConnectedUser;
-      this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
-      this.server.to(AUTH_EVENT_ENUMS.USER_RE_JOINED, reConnectedUser);
-
-      // ! Kullanıcı tekrar room'a join olacak.
     }
   }
 
@@ -163,16 +172,24 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage("userLogoutRequest")
   onUserLoggedOut(client: Socket, data: any) {
 
-    const loggedOutUser = this.users.find(user => user.id === client.id);
+    // Hangi kullanıcı logout isteğinde bulundu ?
+    const loggedOutUser = this.users.find(user => user.socketId === client.id);
 
+    // Kullanıcı var ise 
     if (loggedOutUser) {
-      this.users = this.users.filter(user => user.id !== client.id);
+      this.users = this.users.filter(user => user.socketId !== client.id);
       this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
-      this.server.emit(AUTH_EVENT_ENUMS.USER_LOGGED_OUT, loggedOutUser);
       client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_ACCEPTED, loggedOutUser);
 
-      // ! user should be removed from joined rooms
+      // TODO: Kullanıcı eğer adminse oluşturduğu odadan çıkış yapması ve odanın silinmesi gerekir.
+      // TODO: Room içerisindeki roomOwner parametresi yeni admin olan admin olan kullanıcının bilgisi ile güncellenmeli.
+      // TODO: Eğer kullanıcı ADMİN değilse giriş yaptığı room'daki users listesinden kaldırılması gerekiyor.
+
+      return;
     }
+
+    // Kullanıcı yok ise hata mesajı gönderilir.
+    // client.emit(AUTH_EVENT_ENUMS.LOGOUT_REQUEST_REJECTED, this.createError('UserNotFound', 'UserNotFound'));
   }
 
   /**
@@ -186,37 +203,28 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REQUEST)
   createRoom(client: Socket, data: any) {
-    // check if room already exists
-    const roomExists = this.rooms.find(room => room.roomName === data.roomName);
-    if (roomExists) {
-      // return room already exists
-      client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_REJECTED, { reason: "ALREADY_EXISTS", message: "Oda zaten mevcut" });
-      return;
-    }
 
-    // create a new room
-    client.join(data.roomName);
+    // Odayı hangi kullanıcı oluşturuyor ? 
+    const roomCreator = this.users.find(user => user.socketId === client.id);
 
-    // creator user
-    let whichUserCreatedRoom: UserInterface = this.users.find(user => user.id === client.id);
+    // Odayı oluştur.
+    const newRoom = new Room(data.roomName, roomCreator);
+    this.room = newRoom;
 
-    // new room's informations
-    const roomData: RoomInterface = {
-      roomName: data.roomName,
-      users: [whichUserCreatedRoom],
-      id: uuid(),
-      slug: data.roomName.trim(" ").replace(/\s/g, '-').toLowerCase(), // create slug
-      roomOwner: whichUserCreatedRoom
-    }
+    // Kullanıcı odaya join olsun.
+    client.join(this.room.getSlug());
 
-    // add room to room list
-    this.rooms.push({ ...roomData });
+    // Kullanıcının user type'ı admin olsun
+    roomCreator.setUserType(USER_TYPE_ENUMS.ADMIN);
 
-    // update room list
-    this.server.emit(AUTH_EVENT_ENUMS.UPDATED_ALL_ROOMS, this.rooms);
+    // Kullanıcıya admin olduğu ile ilgili bigilendirme yapılır.
+    client.emit(AUTH_EVENT_ENUMS.USER_TYPE_CHANGED, { userType: roomCreator.getUserType() })
 
-    // accept message to client
-    client.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, { ...roomData });
+    // Kullanıcı listesini güncelle
+    this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+
+    // Oda oluşturuldu bilgisini ilet.
+    this.server.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, this.room);
 
   }
 
@@ -231,33 +239,42 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
    */
   @SubscribeMessage("leaveRoom")
   leaveRoom(client: Socket, data: any) {
-    client.leave(data.roomName)
+
+    // Socket üzerindeki odadan kullanıcıyı çıkar.
+    client.leave(this.room.getSlug())
+
   }
 
   /**
    * Room Join Request
    * 
-   * When user want join a room, this function will be called.
+   * When user want join the room, this function will be called.
    * 
    * @param client Socket client
    * @param data arguments from client
    */
   @SubscribeMessage(AUTH_EVENT_ENUMS.ROOM_JOIN_REQUEST)
   roomJoinRequest(client: Socket, data: any) {
-    const { slug } = data;
-    const room = this.rooms.find(room => room.slug === slug);
 
-    if (room) {
-      client.join(slug);
-      const isUserExist = room.users.find(user => user.id === client.id);
-      if (!isUserExist) {
-        const user = this.users.find(user => user.id === client.id);
-        if (user) {
-          room.users.push(user);
-        }
+    const { slug } = data;
+
+    // Oda oluşturulmuş ise ve gelen slug bilgisi ile uyuşuyorsa... 
+    if (this.room && (this.room.getSlug() === slug)) {
+
+      // Kullanıcıyı tüm userlar içerisinden bul
+      const user = this.users.find(user => user.socketId === client.id);
+
+      // user var ise 
+      if (user) {
+
+        // Kullanıcıyı socket üzerindeki room'a ekle
+        client.join(this.room.getSlug());
+
+        // Kullanıcıyı bilgilendir.
+        this.server.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, this.room.users);
       }
-      this.server.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_ACCEPTED, room);
     } else {
+      // Oda oluşturulmamış ise hata mesajı gönder.
       client.emit(AUTH_EVENT_ENUMS.ROOM_JOIN_REJECTED, this.createError("NOT_FOUND", "Oda bulunamadı"));
     }
   }

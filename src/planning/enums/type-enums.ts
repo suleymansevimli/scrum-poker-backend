@@ -1,4 +1,5 @@
 import { UserInterface } from "src/auth/interfaces/user.interfaces";
+import { User } from "src/auth/models/User";
 import { Task } from "../interfaces/planning.interfaces";
 
 /**
@@ -7,6 +8,17 @@ import { Task } from "../interfaces/planning.interfaces";
  * @author [suleymansevimli](https://github.com/suleymansevimli)
  */
 export type TASK_STATUS = 'OPEN' | 'IN_PROGRESS' | 'DONE';
+
+/**
+ * Task Status Enums
+ * 
+ * @author [suleymansevimli](https://github.com/suleymansevimli)
+ */
+export enum TASK_STATUS_ENUMS {
+    OPEN = 'OPEN',
+    IN_PROGRESS = 'IN_PROGRESS',
+    DONE = 'DONE'
+};
 
 /**
  * Task with Status Type Response Type
@@ -31,5 +43,5 @@ export type USER_RATING_STORY_POINTS = '-' | '1' | '2' | '3' | '5' | '8' | '13' 
  */
 export type TASK_USER_RATING = {
     user: UserInterface,
-    rating: USER_RATING_STORY_POINTS,
+    vote: USER_RATING_STORY_POINTS,
 };

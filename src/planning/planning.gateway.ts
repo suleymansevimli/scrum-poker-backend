@@ -8,9 +8,10 @@ import { randomUUID } from 'crypto';
 import { Socket } from 'socket.io';
 import { AuthGateway } from 'src/auth/auth.gateway';
 import { UserInterface } from 'src/auth/interfaces/user.interfaces';
+import { User } from 'src/auth/models/User';
 import { PLANNING_EVENT_TYPES } from './enums/event-enums';
-import { TASK_WITH_STATUS, USER_RATING_STORY_POINTS } from './enums/type-enums';
-import { Task } from './interfaces/planning.interfaces';
+import { TASK_STATUS_ENUMS, TASK_WITH_STATUS, USER_RATING_STORY_POINTS } from './enums/type-enums';
+import { Task } from './models/Task';
 
 @WebSocketGateway({ cors: true, namespace: '/planning' })
 export class PlanningGateway {
@@ -22,7 +23,6 @@ export class PlanningGateway {
   tasks: Task[] = [];
   currentTask: Task;
   users: UserInterface[] = [];
-  userRatingList: { user: UserInterface, rating: String }[] = [];
 
   // socket initialization
   @WebSocketServer() server: any;
@@ -47,8 +47,9 @@ export class PlanningGateway {
   handleConnection(client: Socket, args: any) {
     this.logger.error(`Planning - Client connected: ${client.id} `);
     this.logger.error('all-users', JSON.stringify(this.users));
-    client.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() })
-    client.emit(PLANNING_EVENT_TYPES.GET_ALL_USER_RATING_LIST, { userRatingList: this.userRatingList })
+
+    // Connection sağlandığında kullanıcıya tüm taskları gönder.
+    client.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() });
   }
 
   /**
@@ -69,11 +70,11 @@ export class PlanningGateway {
    * 
    * @author [suleymansevimli](https://github.com/suleymansevimli)
    */
-  tasksWithStatus(): TASK_WITH_STATUS {
-    const getAllTasksWithStatus: TASK_WITH_STATUS = {
-      OPEN: this.tasks.filter(task => task.status === 'OPEN'),
-      IN_PROGRESS: this.tasks.filter(task => task.status === 'IN_PROGRESS'),
-      DONE: this.tasks.filter(task => task.status === 'DONE')
+  tasksWithStatus() {
+    const getAllTasksWithStatus = {
+      OPEN: this.tasks.filter(task => task.getStatus() === TASK_STATUS_ENUMS.OPEN),
+      IN_PROGRESS: this.tasks.filter(task => task.getStatus() === TASK_STATUS_ENUMS.IN_PROGRESS),
+      DONE: this.tasks.filter(task => task.getStatus() === TASK_STATUS_ENUMS.DONE)
     }
 
     return getAllTasksWithStatus;
@@ -91,22 +92,18 @@ export class PlanningGateway {
   createTask(client: Socket, args: { name: string, description: string }): any {
     this.logger.log(`Planning - Client createTask: ${client.id}`);
 
+    // gelen parametreleri al.
     const { name, description } = args;
 
-    const task: Task = {
-      id: randomUUID(),
-      description,
-      name,
-      status: 'OPEN',
-      storyPoint: null,
-      usersRating: []
-    }
+    // Yeni task oluştur.
+    const task = new Task(name, description);
 
-    // push to tasks array
+    // Oluşturulan task'ı tasks içerisine ekle
     this.tasks.push(task);
 
+    // Kullanıcıları bilgilendir.
     this.server.emit(PLANNING_EVENT_TYPES.CREATE_TASK_REQUEST_ACCEPTED, { task });
-    this.server.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() })
+    this.server.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() });
   }
 
   /**
@@ -119,13 +116,18 @@ export class PlanningGateway {
    * @author [suleymansevimli](https://github.com/suleymansevimli)
    */
   @SubscribeMessage(PLANNING_EVENT_TYPES.START_VOTING_REQUESTED)
-  startVoting(client: Socket, args: { id: String }): any {
+  startVoting(client: Socket, args: { taskId: String }): any {
 
-    const currentTask = this.tasks.find(task => task.id === args.id);
-    currentTask.status = 'IN_PROGRESS';
+    // Hangi task için oylama başlatıldı ?
+    const currentTask = this.tasks.find(task => task.getTaskId() === args.taskId);
 
+    // Task status'unu güncelle
+    currentTask.setStatus(TASK_STATUS_ENUMS.IN_PROGRESS);
+
+    // Current task'ı belirle
     this.currentTask = currentTask;
 
+    // Diğer kullanıcıları bilgilendir.
     this.server.emit(PLANNING_EVENT_TYPES.START_VOTING_REQUEST_ACCEPTED, { task: this.currentTask });
   }
 
@@ -140,28 +142,29 @@ export class PlanningGateway {
    */
   @SubscribeMessage(PLANNING_EVENT_TYPES.STOP_VOTING_REQUESTED)
   stopVoting(client: Socket, args: { id: String }): any {
-    
-    this.currentTask.usersRating = this.currentTask.usersRating.map(userRating => {
-      userRating.rating = '-'
-      return userRating;
-    });
 
-    this.currentTask.status = 'DONE';
+    // this.currentTask.usersRating = this.currentTask.usersRating.map(userRating => {
+    //   userRating.rating = '-'
+    //   return userRating;
+    // });
 
-    const doneTask = this.currentTask;
+    // // Task durumunu DONE olarak setle
+    // this.currentTask.setStatus(TASK_STATUS_ENUMS.DONE);
 
-    this.tasks.push(this.currentTask);
+    // const doneTask = this.currentTask;
 
-    this.currentTask = {
-      id: '',
-      description: '',
-      name: '',
-      storyPoint: null,
-      usersRating: [],
-      status: 'OPEN',
-    };
+    // this.tasks.push(this.currentTask);
 
-    this.server.emit(PLANNING_EVENT_TYPES.STOP_VOTING_REQUEST_ACCEPTED, { task: doneTask });
+    // this.currentTask = {
+    //   id: '',
+    //   description: '',
+    //   name: '',
+    //   storyPoint: null,
+    //   usersRating: [],
+    //   status: 'OPEN',
+    // };
+
+    // this.server.emit(PLANNING_EVENT_TYPES.STOP_VOTING_REQUEST_ACCEPTED, { task: doneTask });
   }
 
   /**
@@ -173,43 +176,19 @@ export class PlanningGateway {
    * @param args 
    */
   @SubscribeMessage(PLANNING_EVENT_TYPES.VOTE_REQUESTED)
-  vote(client: Socket, args: { user: UserInterface, rate: USER_RATING_STORY_POINTS, votingTask: Task, roomId: String }): any {
+  vote(client: Socket, args: { user: UserInterface, vote: USER_RATING_STORY_POINTS }): any {
 
-    const { user, rate, votingTask, roomId } = args;
-    const isUserAlreadyVoted = this.currentTask.usersRating.find(userRating => userRating.user.uniqueId === user.uniqueId);
+    // Gelen değerleri al
+    const { user, vote } = args;
 
-    if (isUserAlreadyVoted) {
-      this.tasks.find(task => task.id === votingTask.id).usersRating.find(userRating => userRating.user.uniqueId === user.uniqueId).rating = rate;
-    } else {
-      this.currentTask.usersRating.push({ user, rating: rate });
-    }
+    // Task'ın userVoteList'ini güncelle
+    this.currentTask.setUserVoteList({ user, vote });
 
-    // user rating list
-    const ratedUsers = this.currentTask.usersRating.map(userRating => {
-      return {
-        user: { uniqueId: userRating.user.uniqueId, name: userRating.user.userName },
-        rating: userRating.rating
-      }
-    });
-    
+    // Güncellenen userVoteList'i tekrar gönder
+    this.server.emit(PLANNING_EVENT_TYPES.CURRENT_USER_VOTE_LIST_UPDATED, { userVoteList: this.currentTask.getuserVoteList() });
 
-    // ! Joined Room
-    const joinedRoom = this.authGateway.rooms.find(room => room.id === roomId);
-    const roomUsers = joinedRoom.users;
-
-    const userRatingList = roomUsers.map(user => {
-      const userRating = ratedUsers.find(userRating => userRating.user.uniqueId === user.uniqueId);
-      return {
-        user,
-        rating: userRating ? userRating.rating : "-"
-      }
-    });
-
-    this.logger.error(JSON.stringify(userRatingList, undefined, 4));
-
-    // save 
-    this.userRatingList = userRatingList;
-    this.server.emit(PLANNING_EVENT_TYPES.VOTE_REQUEST_ACCEPTED, { task: this.currentTask, userRatingList });
+    // Kullanıcıyı bilgilendir.
+    client.emit(PLANNING_EVENT_TYPES.VOTE_REQUEST_ACCEPTED, { task: null, })
 
   }
 }

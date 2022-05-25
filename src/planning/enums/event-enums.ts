@@ -24,4 +24,5 @@ export enum PLANNING_EVENT_TYPES {
     VOTE_REQUEST_REJECTED = 'voteRequestRejected',
 
     GET_ALL_USER_RATING_LIST = 'getAllUserRatingList',
+    CURRENT_USER_VOTE_LIST_UPDATED = 'currentUserVoteListUpdated'
 };
