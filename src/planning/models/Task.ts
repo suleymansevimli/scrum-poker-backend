@@ -1,4 +1,4 @@
-import { User } from 'src/auth/models/User';
+import { UserInterface } from 'src/auth/interfaces/user.interfaces';
 import { v4 as uuid } from 'uuid'
 import { TASK_STATUS, TASK_STATUS_ENUMS, TASK_USER_RATING, USER_RATING_STORY_POINTS } from '../enums/type-enums';
 
@@ -10,6 +10,7 @@ export class Task {
     private status: TASK_STATUS;
     private taskDescription: string;
     public userVoteList: TASK_USER_RATING[];
+    public result: {}
 
     constructor(taskName: string, taskDescription: string) {
         this.taskId = uuid();
@@ -88,11 +89,31 @@ export class Task {
             return this.userVoteList;
         }
 
-        // Kullanıcı nın vote'unu güncelle
+        // Kullanıcının vote'unu güncelle
         this.userVoteList[votedUserIndex].vote = vote;
 
         // Vote list'i dön
         return this.userVoteList;
 
+    }
+
+    public generateUserVoteList(users: UserInterface[]): TASK_USER_RATING[] {
+        const generatedUserVoteList = users.map(user => {
+            
+            const taskUserRatingData: TASK_USER_RATING = {
+                user,
+                vote: '-'
+            }
+
+            return taskUserRatingData;
+        });
+
+        this.userVoteList = generatedUserVoteList;
+
+        return generatedUserVoteList;
+    }
+
+    public setResult(result: object) {
+        this.result = result;
     }
 }

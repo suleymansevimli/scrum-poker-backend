@@ -40,6 +40,9 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(client: Socket, args: any) {
     // Kullanıcı socket id değerini bilsin.
     client.emit(AUTH_EVENT_ENUMS.USER_CONNECTED, { id: client.id });
+    if (this.room) {
+      return client.emit(AUTH_EVENT_ENUMS.GET_ROOM, { room: this.room })
+    }
   }
 
   /**
@@ -62,6 +65,9 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Diğer kullanıcılar bilgilendirilir.
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
+
+    // İlgili kullanıcının offline status'e geçtiği bilgisi gönderilir.
+    this.server.emit(AUTH_EVENT_ENUMS.USER_DISCONNECTED)
 
     // // Eğer kullanıcı admin type'ında ise ADMIN statusu olarak bir sonraki kullanıcıya atanır.
     // if (findUser.userType === USER_TYPE_ENUMS.ADMIN) {
@@ -224,7 +230,7 @@ export class AuthGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit(AUTH_EVENT_ENUMS.GET_ALL_USERS, this.users);
 
     // Oda oluşturuldu bilgisini ilet.
-    this.server.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, this.room);
+    this.server.emit(AUTH_EVENT_ENUMS.NEW_ROOM_CREATE_ACCEPTED, { room: this.room });
 
   }
 

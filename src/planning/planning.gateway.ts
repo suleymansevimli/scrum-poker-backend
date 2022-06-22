@@ -127,6 +127,9 @@ export class PlanningGateway {
     // Current task'ı belirle
     this.currentTask = currentTask;
 
+    // Kullanıcı oy listesini generate et
+    this.currentTask.generateUserVoteList(this.users)
+
     // Diğer kullanıcıları bilgilendir.
     this.server.emit(PLANNING_EVENT_TYPES.START_VOTING_REQUEST_ACCEPTED, { task: this.currentTask });
   }
@@ -143,28 +146,43 @@ export class PlanningGateway {
   @SubscribeMessage(PLANNING_EVENT_TYPES.STOP_VOTING_REQUESTED)
   stopVoting(client: Socket, args: { id: String }): any {
 
-    // this.currentTask.usersRating = this.currentTask.usersRating.map(userRating => {
-    //   userRating.rating = '-'
-    //   return userRating;
-    // });
+    const allVotes = this.currentTask.userVoteList.map(votes => votes.vote);
+    
+    const votes = {};
 
-    // // Task durumunu DONE olarak setle
-    // this.currentTask.setStatus(TASK_STATUS_ENUMS.DONE);
+    allVotes.forEach(vote => {
+      if(votes.hasOwnProperty(vote)) {
+        votes[vote] += 1
+      } else {
+        votes[vote] = 1
+      }
+    })
 
-    // const doneTask = this.currentTask;
+    const averageVoteList = [];
 
-    // this.tasks.push(this.currentTask);
+    // string değerleri kaldır.
+    Object.keys(votes).forEach(vote => {
+      if (Number(vote) !== NaN) {
+        averageVoteList.push(vote);
+      }
+    });
 
-    // this.currentTask = {
-    //   id: '',
-    //   description: '',
-    //   name: '',
-    //   storyPoint: null,
-    //   usersRating: [],
-    //   status: 'OPEN',
-    // };
+    // ortalama değeri hesapla
+    const averageVote = averageVoteList.reduce((a, b) => a + b, 0) / averageVoteList.length;
 
-    // this.server.emit(PLANNING_EVENT_TYPES.STOP_VOTING_REQUEST_ACCEPTED, { task: doneTask });
+    const result = {
+      votes,
+      userVoteList: this.currentTask.userVoteList,
+      averageVote
+    }
+
+    this.currentTask.setResult(result);
+
+    this.currentTask.setStatus(TASK_STATUS_ENUMS.DONE);
+    this.tasks.push(this.currentTask);
+
+    this.server.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() });
+    this.server.emit(PLANNING_EVENT_TYPES.STOP_VOTING_REQUEST_ACCEPTED, { task: this.currentTask });
   }
 
   /**
@@ -188,7 +206,7 @@ export class PlanningGateway {
     this.server.emit(PLANNING_EVENT_TYPES.CURRENT_USER_VOTE_LIST_UPDATED, { userVoteList: this.currentTask.getuserVoteList() });
 
     // Kullanıcıyı bilgilendir.
-    client.emit(PLANNING_EVENT_TYPES.VOTE_REQUEST_ACCEPTED, { task: null, })
+    // client.emit(PLANNING_EVENT_TYPES.VOTE_REQUEST_ACCEPTED, { task: this.currentTask, })
 
   }
 }
