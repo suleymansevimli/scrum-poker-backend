@@ -151,10 +151,12 @@ export class PlanningGateway {
     const votes = {};
 
     allVotes.forEach(vote => {
-      if(votes.hasOwnProperty(vote)) {
-        votes[vote] += 1
-      } else {
-        votes[vote] = 1
+      if(vote !== '-') {
+        if(votes.hasOwnProperty(vote)) {
+          votes[vote] += 1
+        } else {
+          votes[vote] = 1
+        }
       }
     })
 
@@ -162,8 +164,8 @@ export class PlanningGateway {
 
     // string değerleri kaldır.
     Object.keys(votes).forEach(vote => {
-      if (Number(vote) !== NaN) {
-        averageVoteList.push(vote);
+      if (!isNaN(Number(vote))) {
+        averageVoteList.push(Number(vote));
       }
     });
 
@@ -179,7 +181,10 @@ export class PlanningGateway {
     this.currentTask.setResult(result);
 
     this.currentTask.setStatus(TASK_STATUS_ENUMS.DONE);
-    this.tasks.push(this.currentTask);
+
+    const findTaskIndex = this.tasks.findIndex(task => task.getTaskId() === this.currentTask.getTaskId());
+
+    this.tasks[findTaskIndex] = this.currentTask;
 
     this.server.emit(PLANNING_EVENT_TYPES.GET_ALL_TASKS, { tasks: this.tasksWithStatus() });
     this.server.emit(PLANNING_EVENT_TYPES.STOP_VOTING_REQUEST_ACCEPTED, { task: this.currentTask });
